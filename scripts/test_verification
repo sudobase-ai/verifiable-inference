@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+set -e
+set -x
+
+. env/bin/activate
+
+verify_attestation \
+    --measurements sample_data/measurements.json \
+    --attestation sample_data/attestation.json
+
+verify_query \
+    --query sample_data/query.json \
+    --address `cat sample_data/address`

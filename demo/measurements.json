@@ -1,0 +1,8 @@
+{
+  "Measurements": {
+    "HashAlgorithm": "Sha384 { ... }",
+    "PCR0": "690d39a2ecf002f700283ffdeaa0f1a8145d0babd76bd1403335c048e5e5ea11a3492b1d5610b1cd80fd8a46467770fa",
+    "PCR1": "4b4d5b3661b3efc12920900c80e126e4ce783c522de6c02a2a5bf7af3a2b9327b86776f188e4be1c1c404a129dbda493",
+    "PCR2": "cfcc2e33ce9c3c6ea5ef096b5990915bf20bc1cb2b2e6e152944a6b7937e4d294831f785d32335651808e0c0f68b924c"
+  }
+}

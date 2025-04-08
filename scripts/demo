@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+
+set -e
+set -x
+
+. env/bin/activate
+
+export ENCLAVE_HOST=34.193.16.66
+
+mkdir -p _demo
+pushd _demo
+
+  # Attestation
+  curl http://${ENCLAVE_HOST}:5001/enclave/address > address_attestation.json
+  verify_attestation \
+    --measurements ../demo/measurements.json \
+    --attestation address_attestation.json \
+    --root-certificate ../sample_data/root.pem > address
+
+  # Query
+  ../host/query.sh > query.json
+  verify_query --query query.json --address `cat address`
+
+popd
+
+set +x
+set +e
+
+echo "========================================"
+echo "==          DEMO TEST PASSED          =="
+echo "========================================"

@@ -1,0 +1,44 @@
+name: z2 build
+
+on:
+  push:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: full
+
+jobs:
+  z2-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: enable binding to low ports
+        run: |
+          sudo setcap 'cap_net_bind_service=+ep' $(realpath `which python3`)
+
+      - name: install
+        run: |
+          python3 -m venv env
+          . env/bin/activate
+          make dev-setup
+
+      - name: check
+        run: |
+          . env/bin/activate
+          make check
+
+      - name: test_verification
+        run: |
+          . env/bin/activate
+          ./scripts/test_verification
+
+      # - name: check simple pipeline
+      #   run: |
+      #     . env/bin/activate
+      #     ./scripts/test_pipeline
+
+      - name: pipeline test (test_dev)
+        run: |
+          ./scripts/test_dev

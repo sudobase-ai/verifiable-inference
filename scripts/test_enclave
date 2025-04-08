@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+
+set -e
+set -x
+
+# Assumes that `forward` and `ollama` are running in the background,
+# as described in enclave/README.
+
+. env/bin/activate
+
+ENCLAVE_HOST=localhost
+
+# Create image and get measurements.txt
+make stop || echo -n
+make enclave-image
+nitro-cli describe-eif --eif-path z2.eif > z2.eif.json2
+echo {} | jq --slurpfile eif z2.eif.json '.Measurements=$eif[0].Measurements' > measurements.json
+make start
+forward &
+echo $! > forward.pid
+sleep 2
+
+# Address attestation
+curl http://${ENCLAVE_HOST}:5001/enclave/address > address_attestation.json
+verify_attestation \
+    --measurements measurements.json \
+    --attestation address_attestation.json \
+    --root-certificate sample_data/root.pem > address
+
+# Query
+host/query.sh > query.json
+verify_query --query query.json --address `cat address`
+
+kill `cat forward.pid` || echo -n
+make stop
+# rm measurements.json address address_attestations.json query.json forward.pid
+
+set +x
+set +e
+
+echo "========================================"
+echo "==        ENCLAVE TEST PASSED         =="
+echo "========================================"

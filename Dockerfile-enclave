@@ -1,0 +1,44 @@
+FROM "amazonlinux:2023.6.20250218.2"
+
+# Dependencies
+RUN yum groupinstall "Development Tools" -y
+RUN yum install openssl-devel bzip2-devel libffi-devel wget net-tools git iproute dnsmasq python3 -y
+
+# stop DNS service (just in case)
+RUN systemctl disable systemd-resolved
+
+# # Build Python
+# WORKDIR /tmp/python
+# RUN wget https://www.python.org/ftp/python/3.10.4/Python-3.10.4.tgz
+# RUN tar -xf Python-3.10.4.tgz
+# RUN cd Python-3.10.4/ && ./configure --enable-optimizations
+# RUN cd Python-3.10.4/ && make -j $(nproc)
+# RUN cd Python-3.10.4/ && make altinstall
+# RUN python3 -m ensurepip --upgrade
+# RUN pip3 install --upgrade pip
+# RUN cd /
+# RUN rm -rf /tmp/python
+RUN python3 -m ensurepip
+
+RUN systemctl disable systemd-resolved
+
+WORKDIR /app
+
+# core project
+ADD core /core
+RUN pip3 install -e ../core
+
+# enclave project
+ADD enclave /enclave
+RUN pip3 install -e ../enclave
+
+# Run the app
+COPY enclave/run.sh .
+RUN chmod u+x run.sh
+
+# For some reason, putting this in the /app dir doesn't work so we put it in the
+# root.  The enclave command may end up changing the working directory.
+COPY .env /
+
+ENV DOCKER=1
+CMD ["/app/run.sh"]

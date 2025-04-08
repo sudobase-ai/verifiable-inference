@@ -1,0 +1,153 @@
+#!/usr/bin/env bash
+
+set -e
+set -x
+
+function kill_enclave() {
+    make stop || echo -n
+}
+
+function kill_docker() {
+    cids=`docker ps | grep z2 | cut -d\  -f1`
+    for cid in ${cids} ; do
+        echo Stopping existing z2 container: ${cid}
+        docker stop ${cid}
+    done
+    if [ -e container.cid ] ; then
+        docker stop `cat container.cid` || echo -n
+        rm container.cid
+    fi
+}
+
+function kill_forward() {
+    if [ -e forward.pid ] ; then
+       kill `cat forward.pid` || echo -n
+       rm forward.pid
+    fi
+}
+
+function start_ollama() {
+    cids=`docker ps | grep ollama | cut -d\  -f1`
+    if [ -z "${cids}" ] ; then
+        docker run --rm -d -v ollama:/root/.ollama -p 11434:11434 --name ollama ollama/ollama
+        sleep 2
+        curl -X POST -H "Content-Type: application/json" -d '{"model": "moondream"}' http://localhost:11434/api/pull
+    else
+        echo "Ollama container already running (${cids})"
+    fi
+}
+
+# Assumes that `forward` and `ollama` are running in the background,
+# as described in enclave/README.
+
+. env/bin/activate
+
+export ENCLAVE_HOST=localhost
+
+if [ -e .env ]; then
+	source .env
+else
+    # Fake .env file
+	echo "OPENAI_API_KEY=${OPENAI_API_KEY:-fake_openai_api_key}" > .env
+	echo "ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-fake_anthropic_api_key}" >> .env
+	echo "TOGETHER_API_KEY=${TOGETHER_API_KEY:-fake_together_api_key}" >> .env
+fi
+
+# Kill old forwarders
+kill_forward
+
+# Kill existing enclaves. Create and start the new image (docker / eif)
+if [ -n "$FULL" ] ; then
+    make stop || echo -n
+    make enclave-image
+
+    nitro-cli describe-eif --eif-path z2.eif > z2.eif.json
+    echo {} | jq --slurpfile eif z2.eif.json '.Measurements=$eif[0].Measurements' > measurements.json
+
+    make start
+else
+    kill_docker
+    make enclave-docker-image
+    make start-docker-bg
+    fwd_flags=--dev
+fi
+
+# Start ollama (it will stay up)
+start_ollama
+
+forward ${fwd_flags} > forward.log &
+echo $! > forward.pid
+
+sleep 10
+
+mkdir -p _test_dev
+pushd _test_dev
+
+  # Address attestation.  Just extract the address.
+  curl http://${ENCLAVE_HOST}:5001/enclave/address > address_attestation.json
+
+  if [ -n "${FULL}" ] ; then
+      verify_attestation \
+	  --attestation address_attestation.json \
+	  --measurements ../measurements.json > address \
+	  --root-certificate ../sample_data/root.pem
+  else
+      jq -r .address address_attestation.json > address
+  fi
+
+  # Make and verify an ollama query
+  ../host/query_ollama.sh > query_ollama.json
+  verify_query --query query_ollama.json --address `cat address`
+
+  # Make and verify an openai query
+  if [ -n "$OPENAI_API_KEY" ] ; then
+      ../host/query_openai.sh > query_openai.json
+      verify_query --query query_openai.json --address `cat address`
+  else
+      if [ -n "$FORCE_EXTERNAL_APIS" ] ; then
+          echo "No OPENAI_API_KEY"
+          exit 1
+      fi
+      echo "Skipping OPENAI query test (OPENAI_API_KEY)"
+  fi
+
+  # Make and verify an anthropic query
+  if [ -n "$ANTHROPIC_API_KEY" ] ; then
+      ../host/query_anthropic.sh > query_anthropic.json
+      verify_query --query query_anthropic.json --address `cat address`
+  else
+      if [ -n "$FORCE_EXTERNAL_APIS" ] ; then
+          echo "No ANTHROPIC_API_KEY"
+          exit 1
+      fi
+      echo "Skipping ANTHROPIC query test (ANTHROPIC_API_KEY)"
+  fi
+
+  # Make and verify a together query
+  if [ -n "$TOGETHER_API_KEY" ] ; then
+      ../host/query_together.sh > query_together.json
+      verify_query --query query_together.json --address `cat address`
+  else
+      if [ -n "$FORCE_EXTERNAL_APIS" ] ; then
+          echo "No TOGETHER_API_KEY"
+          exit 1
+      fi
+      echo "Skipping TOGETHER query test (TOGETHER_API_KEY)"
+  fi
+
+popd
+
+kill_forward
+if [ -n "${FULL}" ] ; then
+    make stop
+else
+    docker stop `cat container.cid`
+    rm container.cid
+fi
+
+set +x
+set +e
+
+echo "========================================"
+echo "==        ENCLAVE TEST PASSED         =="
+echo "========================================"
