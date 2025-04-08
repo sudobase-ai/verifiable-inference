@@ -22,3 +22,6 @@ verify_attestation = "host.verify_attestation:main"
 verify_query = "host.verify_query:main"
 forward = "host.forward:main"
 https_forward = "host.https_forward:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/host"]

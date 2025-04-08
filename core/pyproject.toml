@@ -16,3 +16,6 @@ dev = [
   "mypy==1.15.0",
   "pylint==3.3.5",
 ]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/core"]

@@ -27,3 +27,6 @@ dev = ["mypy==1.15.0"]
 enclave = "enclave.main:main"
 host_to_vsock = "enclave.host_to_vsock:main"
 host_to_remote = "enclave.host_to_remote:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/enclave"]
