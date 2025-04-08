@@ -1,4 +1,4 @@
-# Z2: Verifiable Inference
+# Verifiable Inference
 
 ## Setup the project
 
