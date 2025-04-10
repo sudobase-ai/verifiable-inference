@@ -29,12 +29,7 @@ test:
 
 check: lint test
 
-# setup:
-# 	pip install hatch
-# 	pip install .
-
 dev-setup:
-	pip install hatch
 	pip install --upgrade pip
 	pip install -e core
 	pip install -e core[dev]
